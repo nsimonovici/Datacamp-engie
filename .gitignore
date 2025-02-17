@@ -1,0 +1,7 @@
+data/
+mlruns/
+mlartifacts/
+__pycache__/
+engie_v0.ipynb
+Engie_Datacamp.ipynb
+correction_Pipeline.ipynb
