@@ -2,8 +2,8 @@ from regression_model_comparison import RegressionModelComparison
 import numpy as np
 import pandas as pd
 
-dataX = pd.read_csv('engie_X.csv', header=0, sep=';', decimal='.')
-dataY = pd.read_csv('engie_Y.csv', header=0,  sep=';', decimal='.')
+dataX = pd.read_csv('data/engie_X.csv', header=0, sep=';', decimal='.')
+dataY = pd.read_csv('data/engie_Y.csv', header=0,  sep=';', decimal='.')
 data_raw = pd.merge(dataX, dataY, on='ID', how='inner')
 print("SHAPE = ", data_raw.shape)
 
@@ -16,7 +16,8 @@ comparison = RegressionModelComparison(
     Y,
     scorings=['mae', 'mse'],
     test_size=0.1,
-    seed=3
+    seed=3,
+    mlflow=True
     )
 
 numerical_features = [

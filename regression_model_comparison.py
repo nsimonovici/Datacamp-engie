@@ -21,8 +21,9 @@ class RegressionModelComparison:
     Class for regression model comparison using scikit-learn
     """
 
-    def __init__(self, X, y, scorings=['mae'], test_size=0.1, seed=3):
+    def __init__(self, X, y, scorings=['mae'], test_size=0.1, seed=3, mlflow=False):
         self.SEED = seed # prepare configuration for cross validation test harness
+        self.USE_MLFLOW = mlflow
         self.X = X
         self.y = y
         self.test_size = test_size
@@ -168,77 +169,105 @@ class RegressionModelComparison:
 
         print("###### Start comparison ######")
 
-        mlflow.set_tracking_uri('http://localhost:5000')
-        with mlflow.start_run():
-            start_time = time.time()
+        if self.USE_MLFLOW is True:
+            mlflow.set_tracking_uri('http://localhost:5000')
+            # Set a tag that we can use to remind ourselves what this run was for
+            # mlflow.set_tag("Training Info", "Basic LR model for iris data")
+            mlflow.start_run()
 
-            for preprocessor in preprocs :
-                print(f"Using preprocessor : {preprocessor}")
+        start_time = time.time()
 
-                for reg_name, regressor, params in models :
-                    print(f"Using regressor : {regressor}")
+        for preprocessor in preprocs :
+            print(f"Using preprocessor : {preprocessor}")
+
+            for reg_name, regressor, params in models :
+                print(f"Using regressor : {regressor}")
+                if verbose:
+                    print(f"with specific params {params}")
+
+                # Pipeline
+                pip = Pipeline(steps=[
+                    ('preproc', preprocessor),
+                    ('regressor', regressor),
+                ])
+
+                if reg_name in ['lasso', 'elasticnet']:
+                    grid = regressor.fit(self.X_train_val, self.y_train_val)
+                    score_train_val = self.scorers['mae']['metric'](estimator=grid, X=self.X_train_val, y_true=self.y_train_val)
+                    prevision = self.scorers['mae']['metric'](estimator=grid, X=self.X_test, y_true=self.y_test)                
+                
                     if verbose:
-                        print(f"with specific params {params}")
+                        print(grid)
+                        print(score_train_val) # MAE
+                        print(grid.get_params())                        
 
-                    # Pipeline
-                    pip = Pipeline(steps=[
-                        ('preproc', preprocessor),
-                        ('regressor', regressor),
-                    ])
+                    best_params = grid.get_params() # Model is fitted on all training set at the end of CV with best params
+                    best_params_list.append(best_params)
+                    best_score_list.append(score_train_val)
+                    best_estimator_list.append(grid)
+                    predict_score_list.append(prevision)
+                        
+                else:
+                    # Ce RIDGE ne fonctionne PAS
+                    # if reg_name == 'ridge': # Using better coefficients for Ridge (from class with Eric)
+                    #     path_ridge = LassoCV().fit(self.X_train_val, self.y_train_val).alphas_ * 100
+                    #     params = {"ridge__alpha": path_ridge}
 
-                    if reg_name in ['lasso', 'elasticnet']:
-                        grid = regressor.fit(self.X_train_val, self.y_train_val)
-                        score_train_val = self.scorers['mae']['metric'](estimator=grid, X=self.X_train_val, y_true=self.y_train_val)
-                        prevision = self.scorers['mae']['metric'](estimator=grid, X=self.X_test, y_true=self.y_test)                
-                    
-                        if verbose:
-                            print(grid)
-                            print(score_train_val) # MAE
-                            print(grid.get_params())                        
+                    # Grid Search
+                    grid = GridSearchCV(
+                            estimator=pip, 
+                            param_grid=params, 
+                            cv=nfolds, 
+                            scoring=[value['name'] for key, value in self.scorers.items()], 
+                            refit=self.scorers['mae']['name']
+                        ).fit(self.X_train_val, self.y_train_val)
+                
+                    if verbose:
+                        print(grid.best_estimator_)
+                        print(grid.best_score_)
+                        print(grid.best_params_)
 
-                        best_params = grid.get_params() # Model is fitted on all training set at the end of CV with best params
-                        best_params_list.append(best_params)
-                        best_score_list.append(score_train_val)
-                        best_estimator_list.append(grid)
-                        predict_score_list.append(prevision)
-                            
-                    else:
-                        # Ce RIDGE ne fonctionne PAS
-                        # if reg_name == 'ridge': # Using better coefficients for Ridge (from class with Eric)
-                        #     path_ridge = LassoCV().fit(self.X_train_val, self.y_train_val).alphas_ * 100
-                        #     params = {"ridge__alpha": path_ridge}
-
-                        # Grid Search
-                        grid = GridSearchCV(
-                                estimator=pip, 
-                                param_grid=params, 
-                                cv=nfolds, 
-                                scoring=[value['name'] for key, value in self.scorers.items()], 
-                                refit=self.scorers['mae']['name']
-                            ).fit(self.X_train_val, self.y_train_val)
-                    
-                        if verbose:
-                            print(grid.best_estimator_)
-                            print(grid.best_score_)
-                            print(grid.best_params_)
-
-                        best_params = grid.best_params_
-                        best_params_list.append(best_params)
-                        best_score_list.append(grid.best_score_)
-                        best_estimator_list.append(grid.best_estimator_)
-                        prevision = grid.score(self.X_test, self.y_test)
-                        predict_score_list.append(prevision)
+                    best_params = grid.best_params_
+                    best_params_list.append(best_params)
+                    best_score_list.append(grid.best_score_)
+                    best_estimator_list.append(grid.best_estimator_)
+                    prevision = grid.score(self.X_test, self.y_test)
+                    predict_score_list.append(prevision)
+                
+                if self.USE_MLFLOW:
                     with mlflow.start_run(nested=True):
+                        # Consigner le nom du modèle
+                        mlflow.set_tag("Model name", reg_name)
+                        
                         # Consigner les paramètres et les métriques
                         for param, value in best_params.items():
                             mlflow.log_param(param, value)
                         mlflow.log_metric(self.scorings[0], prevision)
-                        # Consigner le modèle
-                        mlflow.sklearn.log_model(regressor, "model")
 
-            
-            duration = time.time() - start_time
+                        # Consigner le modèle
+                        # mlflow.sklearn.log_model(regressor, "model")
+
+                        # # Infer the model signature
+                        # signature = infer_signature(X_train, lr.predict(X_train))
+
+                        # # Log the model
+                        # model_info = mlflow.sklearn.log_model(
+                        #     sk_model=lr,
+                        #     artifact_path="iris_model",
+                        #     signature=signature,
+                        #     input_example=X_train,
+                        #     registered_model_name="tracking-quickstart",
+                        # )
+        
+        duration = time.time() - start_time
+
+        if self.USE_MLFLOW:
             mlflow.log_param("comparison_duration", duration)
+
+        if self.USE_MLFLOW:
+            mlflow.end_run()
+
+        print(f"Total duration of comparison = {duration / 60} minutes")
 
         return best_params_list, best_score_list, best_estimator_list, predict_score_list
 
