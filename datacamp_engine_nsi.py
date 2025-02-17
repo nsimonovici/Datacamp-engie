@@ -17,7 +17,7 @@ comparison = RegressionModelComparison(
     scorings=['mae', 'mse'],
     test_size=0.1,
     seed=3,
-    mlflow=True
+    mlflow=False
     )
 
 numerical_features = [

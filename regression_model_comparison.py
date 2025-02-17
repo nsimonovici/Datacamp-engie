@@ -55,7 +55,7 @@ class RegressionModelComparison:
             else:
                 raise ValueError(f"Wrong metric name. Names are to be one of : {self.allowed_scorings}")
 
-    def preprocessing(self, numerical_features, other_features, nknots=4, poly_order=2, scaler='standard'):
+    def preprocessing(self, numerical_features, other_features, nknots=4, poly_order=2, scaler='standard', verbose=False):
 
         #### Pipeline steps
 
@@ -110,10 +110,11 @@ class RegressionModelComparison:
             ('spline', spline_transformer, other_features)  # Caractéristiques pour SplineTransformer
         ])
 
-        print(f"##### Preprocessors prepared : ")
-        print(f"## 'base' :  {self.preprocessor}")
-        print(f"## 'poly' : {self.preprocessor_ps}")
-        print(f"## 'splines' : {self.preprocessor_spline}")
+        if verbose:
+            print(f"##### Preprocessors prepared : ")
+            print(f"## 'base' :  {self.preprocessor}")
+            print(f"## 'poly' : {self.preprocessor_ps}")
+            print(f"## 'splines' : {self.preprocessor_spline}")
 
 
     def run_comparison(
@@ -233,6 +234,8 @@ class RegressionModelComparison:
                     best_estimator_list.append(grid.best_estimator_)
                     prevision = grid.score(self.X_test, self.y_test)
                     predict_score_list.append(prevision)
+
+                    print(f"Previon score using MAE on test set = {prevision}")
                 
                 if self.USE_MLFLOW:
                     with mlflow.start_run(nested=True):
