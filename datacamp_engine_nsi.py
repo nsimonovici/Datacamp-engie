@@ -7,7 +7,7 @@ dataY = pd.read_csv('data/engie_Y.csv', header=0,  sep=';', decimal='.')
 data_raw = pd.merge(dataX, dataY, on='ID', how='inner')
 print("SHAPE = ", data_raw.shape)
 
-sample_size = 100
+sample_size = 50
 X = data_raw.drop(columns=['ID', 'MAC_CODE']).iloc[:sample_size, :]
 Y = data_raw.TARGET.iloc[:sample_size]
 
@@ -17,7 +17,7 @@ comparison = RegressionModelComparison(
     scorings=['mae', 'mse'],
     test_size=0.1,
     seed=3,
-    mlflow=False
+    mlflow=True
     )
 
 numerical_features = [
@@ -70,7 +70,7 @@ comparison.preprocessing(
     scaler='standard',
     )
 
-best_params_list, best_score_list, best_estimator_list, predict_score_list = comparison.run_comparison(
+df_results = comparison.run_comparison(
                     preproc=['base'],
                     model_param={
                         'linear_regression': {},
@@ -78,17 +78,21 @@ best_params_list, best_score_list, best_estimator_list, predict_score_list = com
                         'lasso': {},
                         'elasticnet': {},
                         'randomforest': {
-                            'regressor__n_estimators' : [100, 200, 300, 1000], # Nombre d'arbres dans la forêt. defaut 100
-                            'regressor__max_depth' : [None, 10, 20, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
+                            'regressor__n_estimators' : [100, 1000], # Nombre d'arbres dans la forêt. defaut 100
+                            'regressor__max_depth' : [None, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
                             'regressor__max_features': [3, 'sqrt'], # Nombre maximum de caractéristiques considérées pour chaque split (division d'un nœud en deux sous-nœuds)
                             },
-                        'grd_boosting': {
-                            'regressor__learning_rate' : [.00, .01, .1, 1],
-                            'regressor__max_depth' : [3, 7, 9],
-                            'regressor__subsample' : [0.5, 0.7, 1],
-                            'regressor__n_estimators' : [100, 200, 300, 1000]
-                            }
+                        # 'grd_boosting': {
+                        #     'regressor__learning_rate' : [.01, 1],
+                        #     'regressor__max_depth' : [3, 9],
+                        #     'regressor__subsample' : [0.5, 1],
+                        #     'regressor__n_estimators' : [100, 1000]
+                        #     }
                         },
                     nfolds=5,
-                    verbose=True
+                    verbose=False
                     )
+
+print("The end")
+
+print(df_results)

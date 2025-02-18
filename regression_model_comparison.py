@@ -235,10 +235,15 @@ class RegressionModelComparison:
 
                 grid_results = [reg_name] # - Nom de l'algorithme utilisé
 
+                metrics = {}
                 for scorer in self.scorers.keys():
+                    metrics[scorer] = {}
                     score_train_val = self.scorers[scorer]['metric'](estimator=grid, X=self.X_train_val, y_true=self.y_train_val)
                     prevision = self.scorers[scorer]['metric'](estimator=grid, X=self.X_test, y_true=self.y_test)
                     
+                    metrics[scorer]['train'] = score_train_val
+                    metrics[scorer]['test'] = prevision
+
                     grid_results.append(prevision) # - Score pour chaque métrique sur jeu de test
                     grid_results.append(score_train_val) # - Score pour chaque métrique sur jeu de train/val ? 
 
@@ -257,7 +262,10 @@ class RegressionModelComparison:
                         # Consigner les paramètres et les métriques
                         for param, value in best_params.items():
                             mlflow.log_param(param, value)
-                        mlflow.log_metric(self.scorings[0], prevision)
+
+                        for metric in metrics.keys():
+                            mlflow.log_metric(metric + '_test', metrics[metric]['test'])
+                            mlflow.log_metric(metric + '_train', metrics[metric]['train'])
 
                         # Consigner le modèle
                         # mlflow.sklearn.log_model(regressor, "model")
@@ -284,19 +292,12 @@ class RegressionModelComparison:
 
         print(f"Total duration of comparison = {duration / 60} minutes")
 
-        index_results = ['model', 'test_score', 'train_val_score', 'params']
-        df_results = pd.DataFrame(data=results, ).T
+        index_results = ['model_name']
+        for scorer in self.scorers.keys():
+            index_results.append(scorer + '_test')
+            index_results.append(scorer + '_train')
 
+        index_results += ['model', 'params']
+        df_results = pd.DataFrame(results, columns=index_results)
 
-        return best_params_list, best_score_list, best_estimator_list, predict_score_list
-
-
-# Tester l'implémentation sur un tout petit JDD ! Notamment pour MLFLOW
-
-# Encapsuler la classe dans mlflow
-
-
-    # if np.isnan(transformed_data).any():
-    #     raise ValueError("Il y a des valeurs manquantes (NaN) dans les données transformées.")
-    # else:
-    #     print("Aucune valeur manquante (NaN) dans les données transformées.")
+        return df_results
