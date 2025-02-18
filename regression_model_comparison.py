@@ -163,10 +163,20 @@ class RegressionModelComparison:
 
         # Tout ajouter à une table pour tout sauvegarder (MLFLOW !)
 
-        best_params_list = []
-        best_score_list = []
-        best_estimator_list =[]
-        predict_score_list = []
+        # best_estimator_name_list = []
+        # best_params_list = []
+        # best_score_list = []
+        # best_estimator_list =[]
+        # predict_score_list = []
+
+        # Sauvegarde des résultats :
+        # - Nom de l'algorithme utilisé
+        # - Score pour chaque métrique sur jeu de test
+        # - Score pour chaque métrique sur jeu de train/val ?
+        # - Meilleur estimateur
+        # - Paramètres du meilleur estimateur
+        
+        results = []
 
         print("###### Start comparison ######")
 
@@ -193,20 +203,12 @@ class RegressionModelComparison:
                 ])
 
                 if reg_name in ['lasso', 'elasticnet']:
-                    grid = regressor.fit(self.X_train_val, self.y_train_val)
-                    score_train_val = self.scorers['mae']['metric'](estimator=grid, X=self.X_train_val, y_true=self.y_train_val)
-                    prevision = self.scorers['mae']['metric'](estimator=grid, X=self.X_test, y_true=self.y_test)                
+                    grid = pip.fit(self.X_train_val, self.y_train_val)            
                 
-                    if verbose:
-                        print(grid)
-                        print(score_train_val) # MAE
-                        print(grid.get_params())                        
+                    best_params = grid.get_params()
+                    best_estimator = grid
 
-                    best_params = grid.get_params() # Model is fitted on all training set at the end of CV with best params
-                    best_params_list.append(best_params)
-                    best_score_list.append(score_train_val)
-                    best_estimator_list.append(grid)
-                    predict_score_list.append(prevision)
+                    # Model is fitted on all training set at the end of CV with best params
                         
                 else:
                     # Ce RIDGE ne fonctionne PAS
@@ -229,13 +231,23 @@ class RegressionModelComparison:
                         print(grid.best_params_)
 
                     best_params = grid.best_params_
-                    best_params_list.append(best_params)
-                    best_score_list.append(grid.best_score_)
-                    best_estimator_list.append(grid.best_estimator_)
-                    prevision = grid.score(self.X_test, self.y_test)
-                    predict_score_list.append(prevision)
+                    best_estimator = grid.best_estimator_
 
-                    print(f"Previon score using MAE on test set = {prevision}")
+                grid_results = [reg_name] # - Nom de l'algorithme utilisé
+
+                for scorer in self.scorers.keys():
+                    score_train_val = self.scorers[scorer]['metric'](estimator=grid, X=self.X_train_val, y_true=self.y_train_val)
+                    prevision = self.scorers[scorer]['metric'](estimator=grid, X=self.X_test, y_true=self.y_test)
+                    
+                    grid_results.append(prevision) # - Score pour chaque métrique sur jeu de test
+                    grid_results.append(score_train_val) # - Score pour chaque métrique sur jeu de train/val ? 
+
+                    print(f"Prevision score using ##{scorer}## on test set = {prevision}") 
+            
+                grid_results.append(best_estimator) # - Meilleur estimateur
+                grid_results.append(best_params) # - Paramètres du meilleur estimateur
+
+                results.append(grid_results)
                 
                 if self.USE_MLFLOW:
                     with mlflow.start_run(nested=True):
@@ -271,6 +283,10 @@ class RegressionModelComparison:
             mlflow.end_run()
 
         print(f"Total duration of comparison = {duration / 60} minutes")
+
+        index_results = ['model', 'test_score', 'train_val_score', 'params']
+        df_results = pd.DataFrame(data=results, ).T
+
 
         return best_params_list, best_score_list, best_estimator_list, predict_score_list
 
