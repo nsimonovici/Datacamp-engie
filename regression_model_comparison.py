@@ -188,11 +188,11 @@ class RegressionModelComparison:
 
         start_time = time.time()
 
-        for preprocessor in preprocs :
+        for preprocessor in preproc :
             print(f"Using preprocessor : {preprocessor}")
 
             for reg_name, regressor, params in models :
-                print(f"Using regressor : {regressor}")
+                print(f"Using regressor : {reg_name}")
                 if verbose:
                     print(f"with specific params {params}")
 
