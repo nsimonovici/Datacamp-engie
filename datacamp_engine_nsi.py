@@ -8,7 +8,7 @@ data_raw = pd.merge(dataX, dataY, on='ID', how='inner')
 print("SHAPE = ", data_raw.shape)
 
 sample_size = 50
-X = data_raw.drop(columns=['ID', 'MAC_CODE']).iloc[:sample_size, :]
+X = data_raw.drop(columns=['ID', 'MAC_CODE', 'TARGET']).iloc[:sample_size, :]
 Y = data_raw.TARGET.iloc[:sample_size]
 
 comparison = RegressionModelComparison(
