@@ -92,8 +92,8 @@ class RegressionModelComparison:
         ])
 
         ## PROCESSORS
-        self.preprocessor = ColumnTransformer(transformers= [
-            ('num', numeric_transformer, numerical_features),
+        self.preprocessor = ColumnTransformer(transformers=[
+            ('num', numeric_transformer, numerical_features + other_features),
             # ('cat', categorical_transformer, categorical_features)
         ])
 
@@ -106,7 +106,6 @@ class RegressionModelComparison:
         self.preprocessor_spline = ColumnTransformer(transformers=[
             ('num', numeric_transformer, numerical_features),  # Caractéristiques numériques classiques
             # ('cat', categorical_transformer, categorical_features),  # Caractéristiques catégorielles
-            # ('poly', poly_transformer, other_features),  # Caractéristiques pour PolynomialFeatures
             ('spline', spline_transformer, other_features)  # Caractéristiques pour SplineTransformer
         ])
 
@@ -188,8 +187,8 @@ class RegressionModelComparison:
 
         start_time = time.time()
 
-        for preprocessor in preproc :
-            print(f"Using preprocessor : {preprocessor}")
+        for preproc_name, preprocessor in zip(preproc, preprocs) :
+            print(f"Using preprocessor : {preproc_name}")
 
             for reg_name, regressor, params in models :
                 print(f"Using regressor : {reg_name}")
