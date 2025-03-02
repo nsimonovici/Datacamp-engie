@@ -2,8 +2,9 @@
 import pandas as pd
 import time
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.linear_model import LinearRegression, Ridge, LassoCV, ElasticNetCV
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.neighbors import KNeighborsClassifier
 
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder
@@ -11,19 +12,19 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.preprocessing import PolynomialFeatures, SplineTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from sklearn.metrics import make_scorer, mean_absolute_error, mean_squared_error
+from sklearn.metrics import make_scorer, roc_auc_score, accuracy_score, f1_score
 
-from xgboost import XGBRegressor
+from xgboost import XGBClassifier
 
 import mlflow
 import mlflow.sklearn
 
-class RegressionModelComparison:
+class ClassificationModelComparison:
     """
     Class for regression model comparison using scikit-learn
     """
 
-    def __init__(self, X, y, scorings=['mae'], test_size=0.1, seed=3, mlflow=False):
+    def __init__(self, X, y, scorings=['accuracy'], test_size=0.1, seed=3, mlflow=False):
         self.SEED = seed # prepare configuration for cross validation test harness
         self.USE_MLFLOW = mlflow
         self.X = X
@@ -45,14 +46,18 @@ class RegressionModelComparison:
     def make_scorers(self, scorings):
         self.scorers = {}
         for score in scorings:
-            if score == 'mae':
+            if score == 'accuracy':
                 self.scorers[score] = {}
-                self.scorers[score]['name'] = 'neg_mean_absolute_error'
-                self.scorers[score]['metric'] = make_scorer(mean_absolute_error)
-            elif score == 'mse':
+                self.scorers[score]['name'] = 'accuracy'
+                self.scorers[score]['metric'] = make_scorer(accuracy_score)
+            elif score == 'f1':
                 self.scorers[score] = {}
-                self.scorers[score]['name'] = 'neg_mean_squared_error'
-                self.scorers[score]['metric'] = make_scorer(mean_squared_error)
+                self.scorers[score]['name'] = 'f1'
+                self.scorers[score]['metric'] = make_scorer(f1_score)
+            elif score == 'roc_auc':
+                self.scorers[score] = {}
+                self.scorers[score]['name'] = 'roc_auc'
+                self.scorers[score]['metric'] = make_scorer(roc_auc_score)
             else:
                 raise ValueError(f"Wrong metric name. Names are to be one of : {self.allowed_scorings}")
 
@@ -133,7 +138,8 @@ class RegressionModelComparison:
     def run_comparison(
             self,
             preproc=['base'],
-            model_param={'linear_regression': {}},
+            model_param={'logistic_regression': {}},
+            refit_metric='accuracy',
             nfolds=5,
             verbose=False
             ):
@@ -155,21 +161,19 @@ class RegressionModelComparison:
 
         models = []
         for mdl, params in model_param.items():
-            if mdl == 'linear_regression':
-                models.append((mdl, LinearRegression(), params))
-            elif mdl == 'ridge':
-                models.append((mdl, Ridge(), params))
-            elif mdl == 'lasso':
-                models.append((mdl, LassoCV(), params))
-            elif mdl == 'elasticnet':
-                models.append((mdl, ElasticNetCV(), params))
+            if mdl == 'logistic_regression':
+                models.append((mdl, LogisticRegression(), params))
+            elif mdl == 'knn':
+                models.append((mdl, KNeighborsClassifier(), params))
             elif mdl == 'xgboost':
-                models.append((mdl, XGBRegressor(objective='reg:squarederror', random_state=self.SEED), params))
+                models.append((mdl, XGBClassifier(objective='binary:logistic', random_state=self.SEED), params))
             elif mdl == 'randomforest':
-                models.append((mdl, RandomForestRegressor(), params))
+                models.append((mdl, RandomForestClassifier(), params))
             elif mdl == 'grd_boosting':
-                models.append((mdl, GradientBoostingRegressor(), params))
+                models.append((mdl, GradientBoostingClassifier(), params))
         #   elif model == 'smf':
+        #        pass
+        #   elif mdl == 'xgboost':
         #        pass
             else:
                 raise ValueError(f"Wrong model name. Names are to be one of : {self.allowed_models}")
@@ -190,48 +194,34 @@ class RegressionModelComparison:
         for preproc_name, preprocessor in zip(preproc, preprocs) :
             print(f"Using preprocessor : {preproc_name}")
 
-            for reg_name, regressor, params in models :
-                print(f"Using regressor : {reg_name}")
+            for reg_name, classifier, params in models :
+                print(f"Using classifier : {reg_name}")
                 if verbose:
                     print(f"with specific params {params}")
 
                 # Pipeline
                 pip = Pipeline(steps=[
                     ('preproc', preprocessor),
-                    ('regressor', regressor),
+                    ('classifier', classifier),
                 ])
-
-                if reg_name in ['lasso', 'elasticnet']:
-                    grid = pip.fit(self.X_train_val, self.y_train_val)            
                 
-                    best_params = grid.get_params()
-                    best_estimator = grid
+                # Grid Search
+                grid = GridSearchCV(
+                        estimator=pip, 
+                        param_grid=params, 
+                        cv=nfolds, 
+                        scoring=[value['name'] for key, value in self.scorers.items()], 
+                        refit=self.scorers[refit_metric]['name']
+                    )
+                grid.fit(self.X_train_val, self.y_train_val)
+            
+                if verbose:
+                    print(grid.best_estimator_)
+                    print(grid.best_score_)
+                    print(grid.best_params_)
 
-                    # Model is fitted on all training set at the end of CV with best params
-                        
-                else:
-                    if reg_name == 'ridge': # Using better coefficients for Ridge (from class with Eric)
-                        lasso_fitted = LassoCV().fit(self.X_train_val, self.y_train_val)
-                        path_ridge = lasso_fitted.alphas_ * 100
-                        params = {"regressor__alpha": path_ridge}
-
-                    # Grid Search
-                    grid = GridSearchCV(
-                            estimator=pip, 
-                            param_grid=params, 
-                            cv=nfolds, 
-                            scoring=[value['name'] for key, value in self.scorers.items()], 
-                            refit=self.scorers['mae']['name']
-                        )
-                    grid.fit(self.X_train_val, self.y_train_val)
-                
-                    if verbose:
-                        print(grid.best_estimator_)
-                        print(grid.best_score_)
-                        print(grid.best_params_)
-
-                    best_params = grid.best_params_
-                    best_estimator = grid.best_estimator_
+                best_params = grid.best_params_
+                best_estimator = grid.best_estimator_
 
                 grid_results = [reg_name] # - Nom de l'algorithme utilisé
 
@@ -268,7 +258,7 @@ class RegressionModelComparison:
                             mlflow.log_metric(metric + '_train', metrics[metric]['train'])
 
                         # Consigner le modèle
-                        # mlflow.sklearn.log_model(regressor, "model")
+                        # mlflow.sklearn.log_model(classifier, "model")
 
                         # # Infer the model signature
                         # signature = infer_signature(X_train, lr.predict(X_train))

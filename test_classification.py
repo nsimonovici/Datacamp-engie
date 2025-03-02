@@ -1,4 +1,4 @@
-from regression_model_comparison import RegressionModelComparison
+from classification_model_comparison import ClassificationModelComparison
 import numpy as np
 import pandas as pd
 import warnings
@@ -11,16 +11,17 @@ dataX = pd.read_csv('data/engie_X_head200.csv', header=0, sep=';', decimal='.')
 dataY = pd.read_csv('data/engie_Y_head200.csv', header=0,  sep=';', decimal='.')
 data_raw = pd.merge(dataX, dataY, on='ID', how='inner')
 data_raw['mycateg'] = np.random.choice([0, 1 ,2], size=data_raw.shape[0])
+data_raw['TARGET'] = np.random.choice([0, 1], size=data_raw.shape[0])
 print("SHAPE = ", data_raw.shape)
 
-sample_size = 200
+sample_size = 50
 X = data_raw.drop(columns=['ID', 'MAC_CODE', 'TARGET']).iloc[:sample_size, :]
 Y = data_raw.TARGET.iloc[:sample_size]
 
-comparison = RegressionModelComparison(
+comparison = ClassificationModelComparison(
     X,
     Y,
-    scorings=['mae', 'mse'],
+    scorings=['accuracy', 'f1', 'roc_auc'],
     test_size=0.1,
     seed=3,
     mlflow=False
@@ -82,27 +83,30 @@ comparison.preprocessing(
 df_results = comparison.run_comparison(
                     preproc=['base'],
                     model_param={
-                        'linear_regression': {},
-                        'ridge': {},
-                        'lasso': {},
-                        'elasticnet': {},
+                        'logistic_regression': {},
+                        'knn': {
+                            'classifier__n_neighbors' : [1, 10],
+                            'classifier__p' : [1, 2],
+                            'classifier__weights' : ['uniform', 'distance']
+                            },
                         'xgboost': {
-                            "regressor__n_estimators": [50, 100, 150, 200, 250],
-                            "regressor__learning_rate": [0.01, 0.05, 0.1]
-                            }
+                            "classifier__n_estimators": [50, 150, 250],
+                            "classifier__learning_rate": [0.01, 0.1]
+                            },
                         # 'randomforest': {
-                        #     'regressor__n_estimators' : [100, 1000], # Nombre d'arbres dans la forêt. defaut 100
-                        #     'regressor__max_depth' : [None, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
-                        #     'regressor__max_features': [3, X.shape[1]  /3], # Nombre maximum de caractéristiques considérées pour chaque split (division d'un nœud en deux sous-nœuds)
+                        #     'classifier__n_estimators' : [100, 1000], # Nombre d'arbres dans la forêt. defaut 100
+                        #     'classifier__max_depth' : [None, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
+                        #     'classifier__max_features': [3, 'sqrt'], # Nombre maximum de caractéristiques considérées pour chaque split (division d'un nœud en deux sous-nœuds)
                         #     },
                         # 'grd_boosting': {
-                        #     'regressor__learning_rate' : [.01, 1],
-                        #     'regressor__max_depth' : [3, 9],
-                        #     'regressor__subsample' : [0.5, 1],
-                        #     'regressor__n_estimators' : [100, 1000]
+                        #     'classifier__learning_rate' : [.00, 1],
+                        #     'classifier__max_depth' : [3, 9],
+                        #     'classifier__subsample' : [0.5, 1],
+                        #     'classifier__n_estimators' : [100, 1000]
                         #     }
                         },
                     nfolds=5,
+                    refit_metric='f1',
                     verbose=False
                     )
 
