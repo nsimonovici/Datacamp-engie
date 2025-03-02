@@ -13,7 +13,7 @@ data_raw = pd.merge(dataX, dataY, on='ID', how='inner')
 data_raw['mycateg'] = np.random.choice([0, 1 ,2], size=data_raw.shape[0])
 print("SHAPE = ", data_raw.shape)
 
-sample_size = 200
+sample_size = 50
 X = data_raw.drop(columns=['ID', 'MAC_CODE', 'TARGET']).iloc[:sample_size, :]
 Y = data_raw.TARGET.iloc[:sample_size]
 
