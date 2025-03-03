@@ -134,6 +134,7 @@ class RegressionModelComparison:
             self,
             preproc=['base'],
             model_param={'linear_regression': {}},
+            refit_metric='mae',
             nfolds=5,
             verbose=False
             ):
@@ -221,9 +222,11 @@ class RegressionModelComparison:
                             param_grid=params, 
                             cv=nfolds, 
                             scoring=[value['name'] for key, value in self.scorers.items()], 
-                            refit=self.scorers['mae']['name']
+                            refit=self.scorers[refit_metric]['name']
                         )
                     grid.fit(self.X_train_val, self.y_train_val)
+
+                    print(f"Refit finalized using {refit_metric}")
                 
                     if verbose:
                         print(grid.best_estimator_)
@@ -233,7 +236,7 @@ class RegressionModelComparison:
                     best_params = grid.best_params_
                     best_estimator = grid.best_estimator_
 
-                grid_results = [reg_name] # - Nom de l'algorithme utilisé
+                grid_results = [ preproc_name, reg_name] # - Noms de l'algorithme et du préprocessing utilisés
 
                 metrics = {}
                 for scorer in self.scorers.keys():
@@ -292,7 +295,7 @@ class RegressionModelComparison:
 
         print(f"Total duration of comparison = {duration / 60} minutes")
 
-        index_results = ['model_name']
+        index_results = ['preproc_name', 'model_name']
         for scorer in self.scorers.keys():
             index_results.append(scorer + '_test')
             index_results.append(scorer + '_train')
