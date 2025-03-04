@@ -15,7 +15,7 @@ print("SHAPE = ", data_raw.shape)
 
 sample_size = 50
 X = data_raw.drop(columns=['ID', 'MAC_CODE', 'TARGET']).iloc[:sample_size, :]
-Y = data_raw.TARGET.iloc[:sample_size]
+Y = data_raw.loc[:, ['TARGET']].iloc[:sample_size] # DATAFRAME
 
 comparison = RegressionModelComparison(
     X,
@@ -83,18 +83,18 @@ df_results = comparison.run_comparison(
                     preproc=['base'],
                     model_param={
                         'linear_regression': {},
-                        'ridge': {},
+                        # 'ridge': {},
                         'lasso': {},
                         'elasticnet': {},
                         'xgboost': {
-                            "regressor__n_estimators": [50, 100, 150, 200, 250],
-                            "regressor__learning_rate": [0.01, 0.05, 0.1]
-                            }
-                        # 'randomforest': {
-                        #     'regressor__n_estimators' : [100, 1000], # Nombre d'arbres dans la forêt. defaut 100
-                        #     'regressor__max_depth' : [None, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
-                        #     'regressor__max_features': [3, X.shape[1]  /3], # Nombre maximum de caractéristiques considérées pour chaque split (division d'un nœud en deux sous-nœuds)
-                        #     },
+                            "regressor__n_estimators": [250],
+                            "regressor__learning_rate": [0.1]
+                            },
+                        'randomforest': {
+                            'regressor__n_estimators' : [100, 1000], # Nombre d'arbres dans la forêt. defaut 100
+                            'regressor__max_depth' : [None, 30], # Profondeur maximale des arbres. Si None, les arbres sont développés jusqu'à ce que toutes les feuilles soient pures ou que chaque feuille contienne moins que min_samples_split échantillons
+                            'regressor__max_features': [3, round(X.shape[1]  /3)], # Nombre maximum de caractéristiques considérées pour chaque split (division d'un nœud en deux sous-nœuds)
+                            },
                         # 'grd_boosting': {
                         #     'regressor__learning_rate' : [.01, 1],
                         #     'regressor__max_depth' : [3, 9],
@@ -102,10 +102,24 @@ df_results = comparison.run_comparison(
                         #     'regressor__n_estimators' : [100, 1000]
                         #     }
                         },
-                    nfolds=5,
+                    gs_nfolds=5,
+                    nfolds=2, # pas de VC si None
                     verbose=False
                     )
 
-print("The end")
-
 print(df_results)
+
+print(comparison.get_df_results())
+
+print(comparison.get_metrics())
+
+final_model = comparison.final_grid_search(X, Y,
+            preproc_name=['base'], model_and_params={'xgboost': {
+                            "regressor__n_estimators": [250],
+                            "regressor__learning_rate": [0.1]
+                            }},
+            nfolds=5, refit_metric='mse', verbose=False)
+
+print(final_model)
+
+print("The end")
